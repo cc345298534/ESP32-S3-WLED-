@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WLED 控制台（USB + WiFi 双通道）</title>
+<style>
+:root{
+  --bg:#f6f6f4; --card:#ffffff; --bd:#dcdcd6; --tx:#2c2c2a; --tx2:#6b6b66;
+  --r:#d64545; --g:#3f9c4a; --b:#3b6fd6; --w:#8a8a82;
+  --accent:#3b6fd6; --warn:#b8860b; --bad:#c0392b; --good:#3f9c4a;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:24px 16px 60px;background:var(--bg);color:var(--tx);
+  font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.6}
+.wrap{max-width:800px;margin:0 auto}
+h1{font-size:19px;font-weight:600;margin:0 0 4px}
+h1 .ver{font-size:13px;font-weight:400;color:var(--tx2)}
+.sub{color:var(--tx2);font-size:13px;margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+.card h2{font-size:14px;font-weight:600;margin:0 0 14px}
+.row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.row:last-child{margin-bottom:0}
+label.lb{width:80px;flex:none;color:var(--tx2);font-size:13px}
+input[type=text],input[type=number],select,textarea{border:1px solid var(--bd);border-radius:6px;padding:6px 9px;
+  font-size:14px;font-family:inherit;color:var(--tx);background:#fff}
+input[type=number]{width:78px;text-align:right}
+input[type=range]{flex:1;min-width:80px;height:22px;accent-color:var(--accent);cursor:pointer}
+textarea{width:100%;resize:vertical;min-height:64px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+button{border:1px solid var(--bd);background:#fff;border-radius:6px;padding:7px 14px;
+  font-size:13px;font-family:inherit;color:var(--tx);cursor:pointer}
+button:hover:not(:disabled){background:#f0f0ec}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover:not(:disabled){background:#2f5cba}
+button.danger{background:#fdf3f3;border-color:#eec3c3;color:#8c2b22}
+.chan{display:grid;grid-template-columns:22px 1fr 78px;align-items:center;gap:10px;margin-bottom:10px}
+.chan .tag{font-weight:600;text-align:center;font-size:13px}
+.tagR{color:var(--r)}.tagG{color:var(--g)}.tagB{color:var(--b)}.tagW{color:var(--w)}
+#preview{height:52px;border-radius:8px;border:1px solid var(--bd);margin-top:4px}
+.quick{display:flex;flex-wrap:wrap;gap:8px}
+.mono{font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+.stat{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-size:13px}
+.stat div{display:flex;justify-content:space-between;border-bottom:1px dashed var(--bd);padding:3px 0}
+.stat b{font-family:ui-monospace,Consolas,monospace;font-weight:600}
+.ok{color:var(--good)}.err{color:var(--bad)}.warn{color:var(--warn)}
+.hint{font-size:12px;color:var(--tx2);margin-top:10px;line-height:1.75}
+.hint code{background:#f0f0ec;padding:1px 5px;border-radius:4px;font-size:12px;
+  font-family:ui-monospace,Consolas,monospace}
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;border:1px solid var(--bd)}
+.pill.on{background:#e8f3ea;border-color:#9dc7a5;color:#2f7a3a}
+.pill.off{background:#f2f2ee;color:var(--tx2)}
+.alert{background:#fdf3f3;border:1px solid #eec3c3;color:#8c2b22;border-radius:8px;
+  padding:10px 12px;font-size:13px;margin-top:10px;line-height:1.75}
+.alert.info{background:#f4f7fb;border-color:#c6d7ec;color:#1f4a7a}
+.alert.good{background:#eef7f0;border-color:#b9dcc1;color:#2b6b38}
+.alert.warnbox{background:#fdf8ec;border-color:#e8d9a8;color:#7a5d10}
+#log{height:240px;overflow-y:auto;background:#fbfbf9;border:1px solid var(--bd);border-radius:8px;
+  padding:10px 12px;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.75;white-space:pre-wrap}
+#log .tx{color:#185fa5}
+#log .rx{color:#3b6d11}
+#log .bad{color:#a32d2d}
+#log .sys{color:#888780}
+.chk{display:flex;align-items:center;gap:6px;color:var(--tx2);font-size:13px}
+details summary{cursor:pointer;color:var(--tx2);font-size:13px}
+hr.sep{border:0;border-top:1px dashed var(--bd);margin:14px 0}
+.tabs{display:flex;gap:0;border:1px solid var(--bd);border-radius:8px;overflow:hidden;width:fit-content}
+.tabs button{border:0;border-radius:0;padding:8px 18px;background:#fff;font-size:13px}
+.tabs button.active{background:var(--accent);color:#fff}
+.tabs button+button{border-left:1px solid var(--bd)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>WLED 控制台 <span class="ver">v4 · USB 串口 / WiFi 网络 双通道合一</span></h1>
+  <p class="sub">同一个界面，两种连法：<b>USB 线</b>（Web Serial，不依赖网络）或 <b>WiFi</b>（WebSocket + HTTP）。切换传输方式即可，颜色、状态、日志全部共用。</p>
+
+  <div id="compat" class="alert" style="display:none"></div>
+
+  <div class="card">
+    <h2>1. 选择传输方式并连接</h2>
+    <div class="row">
+      <div class="tabs" id="tabs">
+        <button data-t="usb" class="active">USB 串口</button>
+        <button data-t="net">WiFi 网络</button>
+      </div>
+      <span id="linkPill" class="pill off">未连接</span>
+    </div>
+
+    <!-- USB 面板 -->
+    <div id="usbPanel">
+      <div class="row">
+        <button id="usbConn" class="primary">连接 USB 串口</button>
+        <button id="usbReconn" style="display:none">重连上次设备</button>
+        <button id="usbDisc" disabled>断开</button>
+      </div>
+      <div class="row">
+        <label class="lb" for="baud">波特率</label>
+        <select id="baud">
+          <option value="115200" selected>115200（WLED 默认）</option>
+          <option value="230400">230400</option>
+          <option value="460800">460800</option>
+          <option value="921600">921600</option>
+        </select>
+        <label class="chk"><input type="checkbox" id="usbAuto" checked> 每 2 秒自动读回状态</label>
+      </div>
+      <div class="hint">
+        点「连接 USB 串口」后选 <code>USB 串行设备</code> / <code>USB JTAG/serial debug unit</code>（VID:PID = 303A:1001）。<br>
+        波特率要和 WLED 里 <b>Sync 设置 → 波特率</b> 一致；60 灯用 <code>115200</code> 足够。改了要「断开」再重连才生效。
+      </div>
+      <div class="alert warnbox" style="margin-top:10px">
+        ⚠ <b>实测确认：关闭串口会让 ESP32-S3 复位一次</b>（保持打开则不会）。<br>
+        所以点「断开」、切到 WiFi 模式、或关掉本页面时，灯会<b>短暂灭一下</b>，约 2 秒后自动恢复成 WLED 里保存的状态。<br>
+        这是 ESP32-S3 内置 USB-Serial-JTAG 的行为，不是面板的 bug。不想让灯闪，就别断开，让它一直连着。
+      </div>
+    </div>
+
+    <!-- WiFi 面板 -->
+    <div id="netPanel" style="display:none">
+      <div class="row">
+        <label class="lb" for="ip">设备地址</label>
+        <input type="text" id="ip" style="flex:1" value="4.3.2.1" placeholder="4.3.2.1 或 192.168.x.x">
+        <button id="netConn" class="primary">连接</button>
+        <button id="netDisc" disabled>断开</button>
+      </div>
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="netAuto" checked> 每 5 秒刷新设备信息</label>
+        <label class="chk"><input type="checkbox" id="follow"> 设备广播时回填滑块</label>
+      </div>
+      <div class="hint">
+        · 连 WLED 自己开的热点 <code>WLED-AP</code> → 地址填 <code>4.3.2.1</code><br>
+        · 连同一个家用路由器/局域网 → 填 WLED 的<b>局域网 IP</b>，形如 <code>192.168.1.50</code><br>
+        <b>⚠ 别在没连 WLED-AP 的电脑上直接填 4.3.2.1</b>：那是 AMPRNet 的<b>真实公网地址</b>，
+        若装了 Clash / Mihomo 之类代理，请求会被劫持并返回 <code>HTTP 502</code>。非要用就把 <code>4.*</code> 加进代理绕过列表。<br>
+        地址栏支持 <code>#ip=192.168.1.50</code> 写法，可存成书签，打开自动填好。
+      </div>
+    </div>
+
+    <div id="connMsg" class="hint"></div>
+  </div>
+
+  <div class="card">
+    <h2>2. 开关与亮度</h2>
+    <div class="row">
+      <button id="btnOn" class="primary">开灯</button>
+      <button id="btnOff" class="danger">关灯</button>
+      <button id="btnToggle">切换开关</button>
+      <span id="onPill" class="pill off">未知</span>
+    </div>
+    <div class="row">
+      <label class="lb" for="sBri">主亮度</label>
+      <input type="range" id="sBri" min="1" max="255" value="255">
+      <input type="number" id="nBri" min="1" max="255" value="255">
+    </div>
+    <div class="row">
+      <label class="lb" for="trans">过渡时间</label>
+      <input type="number" id="trans" value="0" min="0" max="65500" step="10">
+      <span style="color:var(--tx2);font-size:13px">ms（<b>0 = 立即生效</b>）</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3. 颜色通道（0 - 255）</h2>
+    <div class="chan"><span class="tag tagR">R</span>
+      <input type="range" id="sR" min="0" max="255" value="255"><input type="number" id="nR" min="0" max="255" value="255"></div>
+    <div class="chan"><span class="tag tagG">G</span>
+      <input type="range" id="sG" min="0" max="255" value="160"><input type="number" id="nG" min="0" max="255" value="160"></div>
+    <div class="chan"><span class="tag tagB">B</span>
+      <input type="range" id="sB" min="0" max="255" value="0"><input type="number" id="nB" min="0" max="255" value="0"></div>
+    <div class="chan"><span class="tag tagW">W</span>
+      <input type="range" id="sW" min="0" max="255" value="0"><input type="number" id="nW" min="0" max="255" value="0"></div>
+    <div id="preview"></div>
+    <div class="row" style="margin-top:14px">
+      <label class="lb" for="hex">HEX</label>
+      <input type="text" id="hex" class="mono" style="flex:1" maxlength="8" placeholder="RRGGBBWW">
+      <button id="btnHex">解析</button>
+    </div>
+    <div class="hint">8 位格式 <code>RRGGBBWW</code>，后两位是白通道。例：<code>FF8000FF</code></div>
+    <hr class="sep">
+    <div class="quick">
+      <button data-c="255,255,255,255">全白 RGBW</button>
+      <button data-c="255,255,255,0">白（仅 RGB）</button>
+      <button data-c="255,180,120,255">暖白</button>
+      <button data-c="200,220,255,255">冷白</button>
+      <button data-c="255,0,0,0">纯红</button>
+      <button data-c="0,255,0,0">纯绿</button>
+      <button data-c="0,0,255,0">纯蓝</button>
+      <button data-c="0,0,0,255">仅白通道</button>
+      <button data-c="0,0,0,0">全灭</button>
+    </div>
+    <div class="hint">快捷颜色点一下<b>立即发送</b>。</div>
+  </div>
+
+  <div class="card">
+    <h2>4. 发送 / 读回</h2>
+    <div class="row">
+      <button id="btnSend" class="primary" style="flex:1">应用颜色 + 亮度到灯带</button>
+      <button id="btnRead">读回状态</button>
+      <button id="btnHold" class="danger">暂停自动发送</button>
+    </div>
+    <div class="row">
+      <label class="chk"><input type="checkbox" id="live"> 拖动滑块时实时发送（60ms 节流）</label>
+    </div>
+    <hr class="sep">
+    <div class="row" style="margin-bottom:8px">
+      <label class="lb" style="width:auto">原始 JSON 命令</label>
+      <span class="hint" style="margin:0;flex:1">万能兜底：任何 WLED API 命令都能从这里下发</span>
+    </div>
+    <textarea id="raw" spellcheck="false">{"on":true,"bri":128}</textarea>
+    <div class="row" style="margin-top:10px">
+      <button id="btnRaw" class="primary">发送这条 JSON</button>
+      <button id="btnVer">查固件版本</button>
+      <button id="btnLed">读 LED 颜色数组</button>
+    </div>
+    <div id="protoHint" class="hint"></div>
+    <details style="margin-top:12px">
+      <summary>高级：让设备切到指定波特率（仅 USB）</summary>
+      <div class="hint" style="margin-top:8px">
+        先按当前波特率连上，再点下面按钮：面板会先给设备发切换字节，然后自动断开。
+        该波特率<b>临时有效</b>，设备重启后回到 Sync 设置里的值。
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="btnBaud">把设备切到上面选中的波特率</button>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>5. 设备状态（只读）</h2>
+    <div class="stat">
+      <div><span>固件版本</span><b id="dVer">-</b></div>
+      <div><span>编译目标</span><b id="dRel">-</b></div>
+      <div><span>LED 数量</span><b id="dCnt">-</b></div>
+      <div><span>当前颜色 RG(BW)</span><b id="dCol">-</b></div>
+      <div><span>开关 / 亮度</span><b id="dOn">-</b></div>
+      <div><span>实时模式 live</span><b id="dLive">-</b></div>
+      <div><span>估算功率</span><b id="dPwr">-</b></div>
+      <div><span>设备运行时间</span><b id="dUp">-</b></div>
+      <div><span>空闲内存</span><b id="dHeap">-</b></div>
+      <div><span>WiFi / 信道</span><b id="dWifi">-</b></div>
+    </div>
+    <div class="stat" style="margin-top:14px">
+      <div><span>已发命令</span><b id="dSent">0</b></div>
+      <div><span>发送失败</span><b id="dFail">0</b></div>
+      <div><span>收到回包</span><b id="dRecv">0</b></div>
+      <div><span>状态与发送不一致</span><b id="dMis">0</b></div>
+    </div>
+    <div id="warnBox"></div>
+    <div class="hint" style="margin-top:12px">
+      这一栏只显示设备回报的真实值。<b>USB 模式下不会回填滑块</b>；<b>WiFi 模式</b>默认也不回填，
+      需要时勾上「设备广播时回填滑块」。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>6. 命令日志 <span style="font-size:12px;font-weight:400;color:var(--tx2)">（排查用，可直接截图）</span></h2>
+    <div id="log"></div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnClr">清空日志</button>
+      <span class="hint" style="margin:0">
+        <span style="color:#185fa5">→ 发出</span> ·
+        <span style="color:#3b6d11">← 设备回包</span> ·
+        <span style="color:#a32d2d">错误 / 不一致</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>7. 两种传输怎么选 / 用不了怎么办</h2>
+    <div class="hint" style="margin-top:0">
+      <b>· USB 串口</b>：不依赖网络，绕开所有 WiFi/代理问题；串口没有广播回声，天然不存在
+      「发送→回显→覆盖」回路。代价是要插线、只能 Chrome/Edge、COM 口被别的程序占用时连不上，
+      且<b>断开串口会让板子复位一次</b>（见第 1 节警告）。<br>
+      <b>· WiFi 网络</b>：可手机控、无需插线；但依赖 IP/路由器，且要注意 <code>4.3.2.1</code> 的代理劫持坑。<br>
+      <b>· 两者互补</b>：WiFi 挂了用 USB 救场，USB 被占用或不想插线就用 WiFi。<br>
+      <b>· 必须是 Chrome 或 Edge</b>（USB 模式）：Web Serial 只在 Chromium 内核桌面版可用。双击本地 HTML 即可，
+      <code>file://</code> 属安全上下文，无需起服务器。<br>
+      <b>· 若提示不支持串口</b>：在该目录执行 <code>python -m http.server 8000</code>，
+      再访问 <code>http://localhost:8000/wled控制台.html</code>。<br>
+      <b>· 这个文件没有任何外部依赖</b>（无 CDN、无字体、无图片），拷到任何一台装了 Chrome/Edge 的电脑都能跑。
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var CH = ['R', 'G', 'B', 'W'];
+  var $ = function (id) { return document.getElementById(id); };
+  var enc = new TextEncoder();
+  var dec = new TextDecoder();
+  var logEl = $('log');
+
+  /* ================= 通用状态 ================= */
+  var sentCount = 0, failCount = 0, recvCount = 0, mismatchCount = 0;
+  var lastSendAt = 0, lastSentCol = null;
+  var autoTimer = null, flushTimer = null, pendingSend = null;
+  var sendBlocked = false;
+  var watch = null;            // WiFi 下的 8 秒冲突观察窗
+  var lastUptime = null;
+
+  function ts() {
+    var d = new Date();
+    return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
+  }
+  function log(cls, text) {
+    var line = document.createElement('div');
+    line.className = cls;
+    line.textContent = '[' + ts() + '] ' + text;
+    logEl.appendChild(line);
+    while (logEl.childNodes.length > 400) logEl.removeChild(logEl.firstChild);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function num(id, lo, hi, dflt) {
+    var n = parseInt($(id).value, 10);
+    if (isNaN(n)) n = dflt;
+    return Math.max(lo, Math.min(hi, n));
+  }
+  function chan(ch) { return num('n' + ch, 0, 255, 0); }
+  function bri() { return num('nBri', 1, 255, 255); }
+  function colNow() { return [chan('R'), chan('G'), chan('B'), chan('W')]; }
+  function fmt(c) { return '[' + c.join(',') + ']'; }
+  function setLink(text, on) {
+    var p = $('linkPill');
+    p.textContent = text;
+    p.className = 'pill ' + (on ? 'on' : 'off');
+  }
+  function say(text, cls) {
+    var el = $('connMsg');
+    el.className = 'hint ' + (cls || '');
+    el.textContent = text;
+  }
+  function stats() {
+    $('dSent').textContent = sentCount;
+    $('dFail').textContent = failCount;
+    $('dRecv').textContent = recvCount;
+    $('dMis').textContent = mismatchCount;
+  }
+  function paint() {
+    var c = colNow();
+    $('preview').style.background = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+    $('hex').value = c.map(function (x) { return ('0' + x.toString(16)).slice(-2).toUpperCase(); }).join('');
+    stats();
+  }
+  function colorCmd() {
+    return { on: true, bri: bri(), transition: num('trans', 0, 65500, 0), seg: [{ col: [colNow()] }] };
+  }
+
+  /* ================= 传输层：USB ================= */
+  var Usb = {
+    port: null, reader: null, keepReading: false,
+    writeChain: Promise.resolve(), readDone: Promise.resolve(), baud: 115200,
+
+    isOpen: function () { return !!(Usb.port && Usb.port.readable && Usb.port.writable); },
+
+    connect: function (p) {
+      Usb.baud = parseInt($('baud').value, 10) || 115200;
+      return p.open({ baudRate: Usb.baud, dataBits: 8, stopBits: 1, parity: 'none', flowControl: 'none' })
+        .then(function () {
+          // 与实测一致的“运行态”：DTR/RTS 均置位，不会让芯片进下载/复位
+          return p.setSignals({ dataTerminalReady: true, requestToSend: true }).catch(function () {});
+        })
+        .then(function () {
+          Usb.port = p;
+          Usb.keepReading = true;
+          Usb.readLoop();
+          onConnected('USB', '已连接 @ ' + Usb.baud + '  ' + Usb.describe(p));
+          log('sys', 'USB 串口已打开 @ ' + Usb.baud + '，' + Usb.describe(p));
+          return Usb.send('{"v":true}');
+        });
+    },
+
+    describe: function (p) {
+      try {
+        var i = p.getInfo ? p.getInfo() : {};
+        if (i.usbVendorId) {
+          var vid = ('0000' + i.usbVendorId.toString(16)).slice(-4).toUpperCase();
+          var pid = ('0000' + (i.usbProductId || 0).toString(16)).slice(-4).toUpperCase();
+          return 'USB ' + vid + ':' + pid;
+        }
+      } catch (e) {}
+      return '串口设备';
+    },
+
+    readLoop: function () {
+      var buf = '';
+      var doneResolve;
+      Usb.readDone = new Promise(function (r) { doneResolve = r; });
+      var finish = function () {
+        try { if (Usb.reader) Usb.reader.releaseLock(); } catch (e) {}
+        Usb.reader = null;
+        if (Usb.keepReading) {
+          Usb.keepReading = false;
+          log('bad', '← 设备已断开（USB 掉线或板子重启），请重新连接');
+          onDisconnected('USB 已断开');
+        }
+        doneResolve();
+      };
+      (function pump() {
+        if (!Usb.port || !Usb.port.readable || !Usb.keepReading) { finish(); return; }
+        Usb.reader = Usb.port.readable.getReader();
+        var step = function () {
+          return Usb.reader.read().then(function (res) {
+            if (res.done) return;
+            buf += dec.decode(res.value, { stream: true });
+            var i;
+            while ((i = buf.indexOf('\n')) >= 0) {
+              var line = buf.slice(0, i).replace(/\r$/, '');
+              buf = buf.slice(i + 1);
+              if (line.length) handleLine(line);
+            }
+            if (buf.length > 131072) buf = buf.slice(-8192);
+            return step();
+          });
+        };
+        step().catch(function (e) {
+          if (Usb.keepReading) log('bad', '← 读取中断：' + (e && e.message ? e.message : e));
+        }).then(finish);
+      })();
+    },
+
+    close: function () {
+      Usb.keepReading = false;
+      var p = Usb.port;
+      if (!p) return Promise.resolve();
+      var cancel = (Usb.reader ? Usb.reader.cancel().catch(function () {}) : Promise.resolve());
+      return cancel.then(function () { return Usb.readDone; })
+        .then(function () { return p.close().catch(function (e) { log('bad', '关闭串口失败：' + e.message); }); })
+        .then(function () { Usb.port = null; });
+    },
+
+    // text 必须是完整 JSON 字符串；自动补 \n（WLED 串口解析需要）
+    send: function (text) {
+      var payload = text;
+      var task = Usb.writeChain.then(function () {
+        if (!Usb.isOpen()) { log('bad', '→ 未连接，发送取消'); return false; }
+        var w = Usb.port.writable.getWriter();
+        return w.write(enc.encode(payload + '\n')).then(function () {
+          lastSendAt = Date.now();
+          sentCount++;
+          log('tx', '→ ' + payload);
+          return true;
+        }).catch(function (e) {
+          failCount++;
+          log('bad', '→ 发送失败：' + (e && e.message ? e.message : e));
+          return false;
+        }).then(function (r) {
+          try { w.releaseLock(); } catch (e) {}
+          paint();
+          return r;
+        });
+      });
+      Usb.writeChain = task.catch(function () {});
+      return task;
+    }
+  };
+
+  /* ================= 传输层：WiFi ================= */
+  var Net = {
+    ws: null, tries: 0, want: false,
+
+    host: function () {
+      return $('ip').value.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    },
+    base: function () { var h = Net.host(); return h ? 'http://' + h : ''; },
+    isOpen: function () { return !!(Net.ws && Net.ws.readyState === 1); },
+
+    connect: function () {
+      try { localStorage.setItem('wledPanelIp', $('ip').value.trim()); } catch (e) {}
+      if (!Net.host()) { say('请先填写设备地址', 'err'); return Promise.resolve(); }
+      Net.want = true;
+      if (Net.ws) { try { Net.ws.close(); } catch (e) {} Net.ws = null; }
+      setLink('连接中…', false);
+      say('正在连接…', '');
+      log('sys', '连接 ws://' + Net.host() + '/ws');
+
+      return new Promise(function (resolve) {
+        var ws;
+        try { ws = new WebSocket('ws://' + Net.host() + '/ws'); } catch (e) { ws = null; }
+        if (!ws) {
+          log('sys', 'WebSocket 不可用，降级 HTTP 轮询模式');
+          Net.ws = null;
+          onConnected('HTTP', 'HTTP 模式（无 WebSocket）  ' + Net.host());
+          return resolve();
+        }
+        Net.ws = ws;
+        ws.onopen = function () {
+          Net.tries = 0;
+          onConnected('WiFi', 'WebSocket 已连接  ' + Net.host());
+          log('sys', 'WebSocket 已连接');
+          Net.query();
+          resolve();
+        };
+        ws.onmessage = function (e) {
+          if (typeof e.data !== 'string') return;
+          var j;
+          try { j = JSON.parse(e.data); } catch (err) { return; }
+          if (j.leds) return;
+          var payload;
+          if (j.state || j.info) payload = j;
+          else if (j.seg) payload = { state: j };
+          else return;
+          log('rx', '← 设备广播' + (payload.state && payload.state.seg ? '  col=' + fmt(payload.state.seg[0].col[0]) : ''));
+          recvCount++;
+          onDeviceState(payload);
+        };
+        ws.onclose = function () {
+          Net.ws = null;
+          if (Net.want && Net.tries < 20) {
+            Net.tries++;
+            setLink('重连中…', false);
+            setTimeout(Net.connect, 400 + Net.tries * 300);
+          } else {
+            onDisconnected('WebSocket 断开');
+          }
+        };
+        ws.onerror = function () { try { ws.close(); } catch (e) {} };
+        // 兜底：3 秒还没 open 就判定失败（代理返回 502 时不会有 onclose）
+        setTimeout(function () {
+          if (Net.ws === ws && ws.readyState !== 1) {
+            log('bad', '连接超时：可能是地址不通，或 4.3.2.1 被系统代理劫持（HTTP 502）');
+            try { ws.close(); } catch (e) {}
+          }
+        }, 3000);
+      });
+    },
+
+    close: function () {
+      Net.want = false;
+      var ws = Net.ws;
+      Net.ws = null;
+      if (ws) { try { ws.close(); } catch (e) {} }
+      return Promise.resolve();
+    },
+
+    send: function (text) {
+      lastSentCol = (function () { try { var o = JSON.parse(text); return o.seg ? o.seg[0].col[0] : null; } catch (e) { return null; } })();
+
+      if (Net.isOpen()) {
+        try {
+          Net.ws.send(text);
+          lastSendAt = Date.now();
+          sentCount++;
+          log('tx', '→ 发出(WS)  ' + text);
+          paint();
+          startWatch();
+          return Promise.resolve(true);
+        } catch (e) {
+          failCount++;
+          log('bad', '→ 发送异常 ' + e.message);
+          paint();
+          return Promise.resolve(false);
+        }
+      }
+      return fetch(Net.base() + '/json/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+        body: text
+      }).then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        lastSendAt = Date.now();
+        sentCount++;
+        log('tx', '→ 发出(HTTP)  ' + text);
+        paint();
+        startWatch();
+        return true;
+      }).catch(function (e) {
+        failCount++;
+        log('bad', '→ 发送失败 ' + e.message);
+        say('发送失败：设备无响应', 'err');
+        paint();
+        return false;
+      });
+    },
+
+    query: function () {
+      if (!Net.base()) return Promise.resolve();
+      var out = {};
+      return fetch(Net.base() + '/json/state').then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).then(function (s) {
+        out.state = s;
+        return fetch(Net.base() + '/json/info').catch(function () { return null; });
+      }).then(function (r) { return r && r.ok ? r.json() : null; })
+        .then(function (i) {
+          if (i) out.info = i;
+          recvCount++;
+          log('rx', '← 读回  ' + (out.state && out.state.seg ? 'col=' + fmt(out.state.seg[0].col[0]) : '') +
+              (out.info ? '  ver=' + out.info.ver : ''));
+          onDeviceState(out);
+        }).catch(function (e) {
+          log('bad', '← 读取失败 ' + e.message);
+          say('读取失败：' + e.message, 'err');
+        });
+    }
+  };
+
+  /* ================= 当前传输 ================= */
+  var T = Usb, TNAME = 'usb';
+
+  function onConnected(kind, text) {
+    setLink(text, true);
+    say(text, 'ok');
+    updateButtons(true);
+    startAutoRead();
+  }
+  function onDisconnected(text) {
+    setLink('未连接', false);
+    if (text) say(text, 'warn');
+    updateButtons(false);
+    stopAutoRead();
+  }
+  function updateButtons(open) {
+    $('usbConn').disabled = open || TNAME !== 'usb';
+    $('usbDisc').disabled = !open || TNAME !== 'usb';
+    $('netConn').disabled = open || TNAME !== 'net';
+    $('netDisc').disabled = !open || TNAME !== 'net';
+    $('usbReconn').style.display = (!open && TNAME === 'usb' && haveGranted) ? '' : 'none';
+  }
+  var haveGranted = false;
+
+  function switchTransport(name) {
+    if (name === TNAME) return;
+    var done = function () {
+      TNAME = name;
+      T = (name === 'usb') ? Usb : Net;
+      $('usbPanel').style.display = name === 'usb' ? '' : 'none';
+      $('netPanel').style.display = name === 'net' ? '' : 'none';
+      Array.prototype.forEach.call($('tabs').children, function (b) {
+        b.className = (b.dataset.t === name) ? 'active' : '';
+      });
+      try { localStorage.setItem('wledTransport', name); } catch (e) {}
+      updateButtons(false);
+      setLink('未连接', false);
+      say(name === 'usb'
+        ? '已切到 USB 串口模式。点「连接 USB 串口」。'
+        : '已切到 WiFi 网络模式。填好设备地址后点「连接」。', '');
+      updateProtoHint();
+      log('sys', '传输方式切换为：' + (name === 'usb' ? 'USB 串口' : 'WiFi 网络'));
+    };
+    if (T.isOpen() || (TNAME === 'net' && Net.want)) {
+      T.close().then(done);
+    } else {
+      done();
+    }
+  }
+
+  function updateProtoHint() {
+    $('protoHint').innerHTML = (TNAME === 'usb')
+      ? '发送时会自动补 <code>\\n</code> 结尾（WLED 串口解析需要它，否则会吃掉下一条命令的首字节）。发 <code>{"v":true}</code> 返回完整 state+info。'
+      : 'WiFi 模式走 WebSocket（连不上时自动降级 HTTP POST 到 <code>/json/state</code>）。发 <code>{"v":true}</code> 同样返回完整 state+info。';
+  }
+
+  /* ================= 发送调度 ================= */
+  function sendObj(obj) {
+    // 手动发送：永远发出去，不受「暂停」影响
+    var text = (typeof obj === 'string') ? obj : JSON.stringify(obj);
+    return T.send(text);
+  }
+  function queueSend(obj) {
+    // 自动发送（拖动滑块触发）：可被「暂停」拦截
+    if (sendBlocked) { log('sys', '→ 已暂停自动发送，滑块命令被拦截'); return; }
+    pendingSend = obj;
+    if (flushTimer) return;
+    var wait = Math.max(0, 60 - (Date.now() - lastSendAt));
+    flushTimer = setTimeout(function () {
+      flushTimer = null;
+      var p = pendingSend; pendingSend = null;
+      if (p) sendObj(p);
+    }, wait);
+  }
+
+  /* ================= 回包解析 ================= */
+  function handleLine(line) {
+    // USB 纯文本回包：'v' → "WLED 16.0.1"；波特率切换 → "Baud is now ..."
+    if (line.charAt(0) !== '{' && line.charAt(0) !== '[') {
+      recvCount++;
+      log('rx', '← ' + line);
+      stats();
+      return;
+    }
+    var j;
+    try { j = JSON.parse(line); } catch (e) {
+      recvCount++;
+      log('rx', '← (非 JSON) ' + line.slice(0, 120));
+      stats();
+      return;
+    }
+    if (Array.isArray(j)) {
+      recvCount++;
+      log('rx', '← LED 数组，' + j.length + ' 颗，前 4 颗：' + j.slice(0, 4).join(' '));
+      stats();
+      return;
+    }
+    if (j.error !== undefined) { recvCount++; log('bad', '← 设备报错 error=' + j.error); stats(); return; }
+    if (j.state || j.info) {
+      recvCount++;
+      log('rx', '← state+info（' + line.length + ' 字节）');
+      onDeviceState(j);
+      return;
+    }
+    recvCount++;
+    log('rx', '← ' + line.slice(0, 200));
+    stats();
+  }
+
+  function onDeviceState(payload) {
+    var s = payload.state, info = payload.info;
+
+    if (s) {
+      var seg = (s.seg && s.seg[0]) || {};
+      var col = (seg.col && seg.col[0]) || [0, 0, 0, 0];
+      var c = [col[0] | 0, col[1] | 0, col[2] | 0, col[3] | 0];
+      $('dCol').textContent = fmt(c);
+      $('dOn').textContent = (s.on ? '开' : '关') + ' / ' + (typeof s.bri === 'number' ? s.bri : '-');
+      $('dLive').textContent = (info && info.live) ? '是（' + (info.lm || '') + '）' : '否';
+      var pill = $('onPill');
+      if (s.on) { pill.textContent = '已开'; pill.className = 'pill on'; }
+      else { pill.textContent = '已关'; pill.className = 'pill off'; }
+
+      // 不一致检测（WiFi 下有意义：可能有别的来源在改）
+      if (lastSentCol && TNAME === 'net' && fmt(c) !== fmt(lastSentCol)) {
+        mismatchCount++;
+        log('bad', '   ⚠ 与最近一次发送 ' + fmt(lastSentCol) + ' 不一致');
+      }
+      // 冲突观察窗
+      if (watch) {
+        if (lastSentCol && fmt(c) === fmt(lastSentCol)) watch.echoes++;
+        else watch.foreign++;
+      }
+
+      var shouldFill = (TNAME === 'usb') || $('follow').checked;
+      if (shouldFill && Date.now() - lastSendAt > 600) {
+        CH.forEach(function (ch, i) { $('n' + ch).value = c[i]; $('s' + ch).value = c[i]; });
+        if (typeof s.bri === 'number') { $('nBri').value = s.bri; $('sBri').value = s.bri; }
+        paint();
+      }
+    }
+
+    if (info) {
+      $('dVer').textContent = info.ver || '-';
+      $('dRel').textContent = (info.release || '-') + (info.arch ? ' / ' + info.arch : '');
+      if (info.leds) {
+        $('dCnt').textContent = info.leds.count + ' 颗' + (info.leds.rgbw ? '（RGBW）' : '');
+        $('dPwr').textContent = (info.leds.pwr || 0) + ' mA / 上限 ' + (info.leds.maxpwr || 0) + ' mA';
+      }
+      if (typeof info.uptime === 'number') {
+        if (lastUptime !== null && info.uptime < lastUptime - 1) {
+          log('bad', '⚠ 设备运行时间归零 → 疑似欠压重启');
+          $('warnBox').innerHTML = '<div class="alert warnbox">检测到设备重启（运行时间归零）。' +
+            '若反复出现，基本可判定是<b>供电欠压</b>，不是软件问题。</div>';
+        }
+        lastUptime = info.uptime;
+        var u = info.uptime, m = Math.floor(u / 60) % 60, h = Math.floor(u / 3600);
+        $('dUp').textContent = (h ? h + ' 时 ' : '') + m + ' 分 ' + (u % 60) + ' 秒';
+      }
+      if (typeof info.freeheap === 'number') $('dHeap').textContent = Math.round(info.freeheap / 1024) + ' KB';
+      if (info.wifi) $('dWifi').textContent = (info.wifi.ap ? 'AP 模式' : '已连路由') + ' / 信道 ' + (info.wifi.channel || '-');
+    }
+    stats();
+  }
+
+  // WiFi 专用：发送后开 8 秒观察窗，判断是否有别的来源在改颜色
+  function startWatch() {
+    if (TNAME !== 'net') return;
+    var w = { foreign: 0, echoes: 0 };
+    watch = w;
+    setTimeout(function () {
+      if (watch !== w) return;
+      watch = null;
+      var box = $('warnBox');
+      if (w.foreign > 0) {
+        box.innerHTML = '<div class="alert">❌ <b>检测到外部颜色变化：' + w.foreign + ' 次</b>（本面板只发了 1 条命令）。<br>' +
+          '说明有<b>别的来源</b>在改颜色。按可能性排序：<br>' +
+          '① 另一个浏览器标签 / 手机还开着旧面板或 WLED 官方界面，在持续推送<br>' +
+          '② 设备上设了<b>播放列表 / 定时器 / 预设循环</b><br>' +
+          '③ 设备<b>欠压重启</b>（看「设备运行时间」是否归零）<br>' +
+          '把日志截图发我，按时间戳就能定位是谁。</div>';
+      } else {
+        box.innerHTML = '<div class="alert info">✅ 8 秒观察期内，设备状态<b>没有</b>出现非本面板的颜色变化' +
+          '（收到 ' + w.echoes + ' 条一致回显）。控制链路是干净的。<br>' +
+          '若灯此刻仍在乱跳，那就不是软件问题 → 把主亮度降到 20 再试：<br>' +
+          '· 降到 20 就稳了 → <b>供电 / 压降</b>问题<br>' +
+          '· 降到 20 照样乱 → <b>数据信号电平</b>问题（3.3V 低于 SK6812 门限 3.5V）</div>';
+      }
+    }, 8100);
+  }
+
+  /* ================= 自动读回 ================= */
+  function startAutoRead() {
+    stopAutoRead();
+    if (TNAME === 'usb') {
+      if (!$('usbAuto').checked) return;
+      autoTimer = setInterval(function () { if (Usb.isOpen()) Usb.send('{"v":true}'); }, 2000);
+    } else {
+      if (!$('netAuto').checked) return;
+      autoTimer = setInterval(function () { Net.query(); }, 5000);
+    }
+  }
+  function stopAutoRead() { if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } }
+
+  /* ================= 事件绑定 ================= */
+  Array.prototype.forEach.call($('tabs').children, function (b) {
+    b.addEventListener('click', function () { switchTransport(b.dataset.t); });
+  });
+
+  // USB 连接
+  $('usbConn').addEventListener('click', function () {
+    if (!('serial' in navigator)) { showCompat(); return; }
+    navigator.serial.requestPort().then(function (p) {
+      return Usb.connect(p);
+    }).catch(function (e) {
+      if (e && e.name === 'NotFoundError') { log('sys', '用户取消了选择'); return; }
+      log('bad', '打开串口失败：' + (e && e.message ? e.message : e));
+      say('打开串口失败：' + (e && e.message ? e.message : e) + '（常见原因：COM 口被其它程序占用）', 'err');
+      onDisconnected();
+    });
+  });
+  $('usbReconn').addEventListener('click', function () {
+    navigator.serial.getPorts().then(function (ps) {
+      if (!ps.length) { say('没有已授权的设备，请点「连接 USB 串口」', 'warn'); return; }
+      return Usb.connect(ps[0]);
+    }).catch(function (e) { log('bad', '重连失败：' + e.message); });
+  });
+  $('usbDisc').addEventListener('click', function () {
+    log('sys', '正在关闭串口 —— 板子会复位一次，约 2 秒后自动恢复');
+    Usb.close().then(function () { onDisconnected('USB 已断开（板子已复位，约 2 秒后恢复）'); log('sys', '已断开 USB 串口'); });
+  });
+  $('usbAuto').addEventListener('change', function () { if (TNAME === 'usb') { startAutoRead(); log('sys', '自动读回：' + (this.checked ? '开' : '关')); } });
+  $('netAuto').addEventListener('change', function () { if (TNAME === 'net') { startAutoRead(); log('sys', '自动刷新：' + (this.checked ? '开' : '关')); } });
+
+  // WiFi 连接
+  $('netConn').addEventListener('click', function () {
+    Net.connect().then(function () {
+      if (TNAME === 'net') { updateButtons(Net.isOpen() || !!Net.host()); }
+    });
+  });
+  $('netDisc').addEventListener('click', function () {
+    Net.close().then(function () { onDisconnected('WiFi 已断开'); log('sys', '已断开 WiFi'); });
+  });
+
+  // 颜色滑块
+  CH.forEach(function (ch) {
+    $('s' + ch).addEventListener('input', function () {
+      $('n' + ch).value = this.value; paint();
+      if ($('live').checked) queueSend(colorCmd());
+    });
+    $('n' + ch).addEventListener('input', function () {
+      $('s' + ch).value = this.value; paint();
+      if ($('live').checked) queueSend(colorCmd());
+    });
+  });
+  $('sBri').addEventListener('input', function () {
+    $('nBri').value = this.value; if ($('live').checked) queueSend(colorCmd());
+  });
+  $('nBri').addEventListener('input', function () {
+    $('sBri').value = this.value; if ($('live').checked) queueSend(colorCmd());
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.quick button'), function (btn) {
+    btn.addEventListener('click', function () {
+      var p = btn.dataset.c.split(',').map(Number);
+      CH.forEach(function (ch, i) { $('n' + ch).value = p[i]; $('s' + ch).value = p[i]; });
+      paint();
+      sendObj(colorCmd());
+    });
+  });
+
+  $('btnHex').addEventListener('click', function () {
+    var s = $('hex').value.replace(/[^0-9a-fA-F]/g, '');
+    if (s.length !== 6 && s.length !== 8) { say('HEX 需要 6 位或 8 位', 'err'); return; }
+    CH.forEach(function (ch, i) {
+      var seg = s.substr(i * 2, 2);
+      var v = seg.length === 2 ? parseInt(seg, 16) : 0;
+      $('n' + ch).value = v; $('s' + ch).value = v;
+    });
+    paint();
+    say('已解析 HEX，点「应用颜色」下发', 'ok');
+  });
+
+  // 控制按钮
+  $('btnSend').addEventListener('click', function () { sendBlocked = false; updateHoldBtn(); sendObj(colorCmd()); });
+  $('btnRead').addEventListener('click', function () {
+    if (TNAME === 'usb') Usb.send('{"v":true}'); else Net.query();
+  });
+  $('btnOn').addEventListener('click', function () { sendObj({ on: true }); });
+  $('btnOff').addEventListener('click', function () { sendObj({ on: false }); });
+  $('btnToggle').addEventListener('click', function () { sendObj({ on: 't' }); });
+  $('btnHold').addEventListener('click', function () {
+    sendBlocked = !sendBlocked;
+    updateHoldBtn();
+    log('sys', sendBlocked ? '已暂停发送（手动点按钮仍可发）' : '已恢复发送');
+  });
+  function updateHoldBtn() {
+    var b = $('btnHold');
+    b.textContent = sendBlocked ? '恢复自动发送' : '暂停自动发送';
+    b.className = sendBlocked ? 'primary' : 'danger';
+  }
+
+  $('btnRaw').addEventListener('click', function () {
+    var t = $('raw').value.trim();
+    if (!t) { say('命令为空', 'err'); return; }
+    if (t.charAt(0) === '{' || t.charAt(0) === '[') {
+      try { JSON.parse(t); } catch (e) { say('JSON 语法错误：' + e.message, 'err'); return; }
+    }
+    say('已发送', 'ok');
+    sendObj(t);
+  });
+  $('btnVer').addEventListener('click', function () {
+    if (TNAME === 'usb') Usb.send('v');
+    else { Net.query(); say('WiFi 模式下版本见「设备状态」栏', 'ok'); }
+  });
+  $('btnLed').addEventListener('click', function () {
+    if (TNAME === 'usb') Usb.send('l');
+    else { log('sys', 'LED 数组查询是串口专有命令，WiFi 模式请用「读回状态」'); }
+  });
+
+  $('btnBaud').addEventListener('click', function () {
+    if (TNAME !== 'usb') { say('该功能仅 USB 模式可用', 'err'); return; }
+    var map = { '115200': 0xB0, '230400': 0xB1, '460800': 0xB2, '921600': 0xB5 };
+    var baud = $('baud').value, byte = map[baud];
+    if (byte === undefined) { say('不支持该波特率', 'err'); return; }
+    if (!Usb.isOpen()) { say('请先连接', 'err'); return; }
+    var w = Usb.port.writable.getWriter();
+    w.write(new Uint8Array([byte])).catch(function () {}).then(function () {
+      try { w.releaseLock(); } catch (e) {}
+      log('sys', '已发送波特率切换字节 0x' + byte.toString(16) + ' → ' + baud);
+      return new Promise(function (r) { setTimeout(r, 300); });
+    }).then(function () { return Usb.close(); }).then(function () {
+      onDisconnected();
+      log('sys', '请重新点「连接 USB 串口」（此时设备已是 ' + baud + '）');
+      say('设备已切到 ' + baud + '，请重新点「连接 USB 串口」', 'warn');
+    });
+  });
+
+  $('btnClr').addEventListener('click', function () { logEl.innerHTML = ''; log('sys', '日志已清空'); });
+
+  /* ================= 兼容性 / 初始化 ================= */
+  function showCompat() {
+    var el = $('compat');
+    el.style.display = '';
+    el.className = 'alert';
+    el.innerHTML = '<b>当前浏览器不支持 Web Serial，USB 模式不可用。</b><br>' +
+      '请改用 <b>Chrome</b> 或 <b>Edge</b>（桌面版）；Firefox / Safari 不支持。' +
+      '<b>WiFi 模式不受此限制</b>，可直接使用。<br>' +
+      '若已是 Chrome 仍报此提示，请在本目录执行 <code>python -m http.server 8000</code>，' +
+      '再访问 <code>http://localhost:8000/wled控制台.html</code>。';
+  }
+  var serialOK = ('serial' in navigator);
+  if (!serialOK) showCompat();
+
+  if (serialOK) {
+    navigator.serial.addEventListener('disconnect', function () {
+      if (Usb.keepReading) {
+        log('bad', '← USB 设备已拔出');
+        Usb.keepReading = false;
+        if (TNAME === 'usb') onDisconnected('USB 已拔出');
+      }
+    });
+    navigator.serial.getPorts().then(function (ps) {
+      haveGranted = ps.length > 0;
+      if (haveGranted && TNAME === 'usb' && !Usb.isOpen()) $('usbReconn').style.display = '';
+    }).catch(function () {});
+  }
+
+  // 初始化：地址优先级 #ip= > localStorage > 默认；传输方式记忆
+  try {
+    var hm = /(?:^|[#&])ip=([^&]+)/.exec(location.hash);
+    var saved = localStorage.getItem('wledPanelIp');
+    if (hm) $('ip').value = decodeURIComponent(hm[1]);
+    else if (saved) $('ip').value = saved;
+  } catch (e) {}
+
+  var wantTransport = 'usb';
+  try {
+    var t = localStorage.getItem('wledTransport');
+    if (t === 'net') wantTransport = 'net';
+  } catch (e) {}
+  if (wantTransport === 'net' || !serialOK) {
+    TNAME = 'net'; T = Net;
+    $('usbPanel').style.display = 'none';
+    $('netPanel').style.display = '';
+    Array.prototype.forEach.call($('tabs').children, function (b) {
+      b.className = (b.dataset.t === 'net') ? 'active' : '';
+    });
+  }
+
+  updateButtons(false);
+  updateProtoHint();
+  updateHoldBtn();
+  paint();
+  log('sys', '面板已就绪。当前传输：' + (TNAME === 'usb' ? 'USB 串口' : 'WiFi 网络') + '。');
+  log('sys', 'USB 模式：命令以 \\n 结尾；WiFi 模式：WebSocket 优先，HTTP 兜底。');
+})();
+</script>
+</body>
+</html>

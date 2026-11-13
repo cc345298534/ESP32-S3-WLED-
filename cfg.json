@@ -1,0 +1,9 @@
+{
+  "n": "WLED",
+  "leds": {
+    "count": 60,
+    "rgbw": true,
+    "pin": [5, -1, -1],
+    "maxpwr": 3000
+  }
+}
